@@ -760,7 +760,7 @@ function clearScanForm() {
   document.getElementById('fType').value = 'rura';
 }
 
-function handleScan(input) {
+async function handleScan(input) {
   const file = input.files[0];
   if (!file) return;
   const capturedFile = file;
@@ -899,7 +899,7 @@ function showProjForm() {
   if (!positions.length) addPosition();
 }
 
-function handleProjScan(input) {
+async function handleProjScan(input) {
   const file = input.files[0];
   if (!file) return;
   const capturedFile = file;
