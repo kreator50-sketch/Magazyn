@@ -558,12 +558,7 @@
   </div>
 </div>
 
-<script>
-  // Load local Tesseract
-  const tScript = document.createElement('script');
-  tScript.src = 'tesseract.min.js';
-  document.head.appendChild(tScript);
-</script>
+<script src="https://unpkg.com/tesseract.js@4.1.1/dist/tesseract.min.js"></script>
 <script>
 // ===================== STATE =====================
 const BASE_URL = 'https://kreator50-sketch.github.io/Magazyn';
@@ -573,22 +568,27 @@ let currentEntnahme = null;
 let editingPipeId = null;
 let ocrWorker = null;
 
-async function initOCR() {
-  try {
-    await new Promise(resolve => {
-      if (typeof Tesseract !== 'undefined') return resolve();
-      tScript.onload = resolve;
-    });
-    ocrWorker = await Tesseract.createWorker('deu+eng', 1, {
-      workerPath: BASE_URL + '/worker.min.js',
-      langPath: 'https://tessdata.projectnaptha.com',
-      corePath: BASE_URL + '/tesseract.min.js',
-      logger: () => {}
-    });
-    console.log('OCR ready');
-  } catch(e) {
-    console.error('OCR init failed:', e);
-  }
+let ocrReady = false;
+let ocrInitPromise = null;
+let ocrWorker = null;
+
+function initOCR() {
+  ocrInitPromise = new Promise(async (resolve) => {
+    try {
+      ocrWorker = await Tesseract.createWorker('deu+eng', 1, {
+        workerPath: 'https://unpkg.com/tesseract.js@4.1.1/dist/worker.min.js',
+        langPath: 'https://tessdata.projectnaptha.com',
+        corePath: 'https://unpkg.com/tesseract.js-core@4.0.4/tesseract-core-simd.wasm.js',
+        logger: () => {}
+      });
+      ocrReady = true;
+      console.log('OCR gotowy');
+    } catch(e) {
+      console.error('OCR błąd:', e);
+    }
+    resolve();
+  });
+  return ocrInitPromise;
 }
 
 function saveDB() { localStorage.setItem('magazynDB', JSON.stringify(db)); }
@@ -769,7 +769,11 @@ function handleScan(input) {
     status.innerHTML = '<div class="spinner"></div> Rozpoznaję etykietę...';
 
     try {
-      if (!ocrWorker) await initOCR();
+      if (!ocrReady) {
+        status.innerHTML = '<div class="spinner"></div> Ładuję OCR (pierwsze uruchomienie ~20s)...';
+        await ocrInitPromise;
+      }
+      if (!ocrReady) throw new Error('OCR niedostępny');
       const { data: { text } } = await ocrWorker.recognize(capturedFile);
       console.log('OCR TEXT:', text);
       if (!text || text.trim().length < 10) throw new Error('Brak tekstu');
@@ -909,7 +913,11 @@ function handleProjScan(input) {
     status.innerHTML = '<div class="spinner"></div> Rozpoznaję projekt...';
 
     try {
-      if (!ocrWorker) await initOCR();
+      if (!ocrReady) {
+        status.innerHTML = '<div class="spinner"></div> Ładuję OCR...';
+        await ocrInitPromise;
+      }
+      if (!ocrReady) throw new Error('OCR niedostępny');
       const { data: { text } } = await ocrWorker.recognize(capturedFile);
       parseProjText(text);
       status.className = 'ocr-status success';
