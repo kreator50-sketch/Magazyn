@@ -566,12 +566,6 @@ let db = JSON.parse(localStorage.getItem('magazynDB') || '{"pipes":[],"tasks":[]
 let serialMode = false;
 let currentEntnahme = null;
 let editingPipeId = null;
-let ocrWorker = null;
-
-let db = JSON.parse(localStorage.getItem('magazynDB') || '{"pipes":[],"tasks":[],"history":[],"nextResto":1171}');
-let serialMode = false;
-let currentEntnahme = null;
-let editingPipeId = null;
 
 async function runVisionOCR(file) {
   return new Promise((resolve, reject) => {
