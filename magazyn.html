@@ -560,7 +560,7 @@
 
 <script>
 // ===================== STATE =====================
-const OCR_KEY = 'K89735542388957';
+const OCR_KEY = 'K87963543388957';
 let db = JSON.parse(localStorage.getItem('magazynDB') || '{"pipes":[],"tasks":[],"history":[],"nextResto":1171}');
 let serialMode = false;
 let currentEntnahme = null;
@@ -757,17 +757,21 @@ function handleScan(input) {
       .then(r => r.json())
       .then(data => {
         if (data.IsErroredOnProcessing || !data.ParsedResults || !data.ParsedResults[0]) {
-          throw new Error('OCR error');
+          const errMsg = data.ErrorMessage || data.ErrorDetails || 'Brak wyników';
+          throw new Error(errMsg);
         }
         const text = data.ParsedResults[0].ParsedText || '';
+        // DEBUG - pokazuje surowy tekst OCR
+        console.log('OCR TEXT:', text);
+        alert('DEBUG OCR:\n' + text.slice(0, 300));
         parseAndFillLabel(text);
         status.className = 'ocr-status success';
         status.textContent = '✅ Rozpoznano! Sprawdź dane.';
         document.getElementById('scanForm').style.display = 'block';
       })
-      .catch(() => {
+      .catch(err => {
         status.className = 'ocr-status error';
-        status.textContent = '⚠️ Nie udało się rozpoznać. Wpisz ręcznie.';
+        status.textContent = '⚠️ Błąd: ' + err.message;
         document.getElementById('scanForm').style.display = 'block';
         clearScanForm();
       });
