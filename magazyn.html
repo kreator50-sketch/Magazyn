@@ -559,12 +559,37 @@
 </div>
 
 <script>
+  // Load local Tesseract
+  const tScript = document.createElement('script');
+  tScript.src = 'tesseract.min.js';
+  document.head.appendChild(tScript);
+</script>
+<script>
 // ===================== STATE =====================
-const OCR_KEY = 'K87963543388957';
+const BASE_URL = 'https://kreator50-sketch.github.io/Magazyn';
 let db = JSON.parse(localStorage.getItem('magazynDB') || '{"pipes":[],"tasks":[],"history":[],"nextResto":1171}');
 let serialMode = false;
 let currentEntnahme = null;
 let editingPipeId = null;
+let ocrWorker = null;
+
+async function initOCR() {
+  try {
+    await new Promise(resolve => {
+      if (typeof Tesseract !== 'undefined') return resolve();
+      tScript.onload = resolve;
+    });
+    ocrWorker = await Tesseract.createWorker('deu+eng', 1, {
+      workerPath: BASE_URL + '/worker.min.js',
+      langPath: 'https://tessdata.projectnaptha.com',
+      corePath: BASE_URL + '/tesseract.min.js',
+      logger: () => {}
+    });
+    console.log('OCR ready');
+  } catch(e) {
+    console.error('OCR init failed:', e);
+  }
+}
 
 function saveDB() { localStorage.setItem('magazynDB', JSON.stringify(db)); }
 
@@ -743,38 +768,21 @@ function handleScan(input) {
     status.className = 'ocr-status loading';
     status.innerHTML = '<div class="spinner"></div> Rozpoznaję etykietę...';
 
-    // Send to OCR.space using FormData
-    const formData = new FormData();
-    formData.append('file', capturedFile);
-    formData.append('apikey', OCR_KEY);
-    formData.append('language', 'ger');
-    formData.append('isOverlayRequired', 'false');
-    formData.append('detectOrientation', 'true');
-    formData.append('scale', 'true');
-    formData.append('OCREngine', '2');
-
-    fetch('https://api.ocr.space/parse/image', { method: 'POST', body: formData })
-      .then(r => r.json())
-      .then(data => {
-        if (data.IsErroredOnProcessing || !data.ParsedResults || !data.ParsedResults[0]) {
-          const errMsg = data.ErrorMessage || data.ErrorDetails || 'Brak wyników';
-          throw new Error(errMsg);
-        }
-        const text = data.ParsedResults[0].ParsedText || '';
-        // DEBUG - pokazuje surowy tekst OCR
-        console.log('OCR TEXT:', text);
-        alert('DEBUG OCR:\n' + text.slice(0, 300));
-        parseAndFillLabel(text);
-        status.className = 'ocr-status success';
-        status.textContent = '✅ Rozpoznano! Sprawdź dane.';
-        document.getElementById('scanForm').style.display = 'block';
-      })
-      .catch(err => {
-        status.className = 'ocr-status error';
-        status.textContent = '⚠️ Błąd: ' + err.message;
-        document.getElementById('scanForm').style.display = 'block';
-        clearScanForm();
-      });
+    try {
+      if (!ocrWorker) await initOCR();
+      const { data: { text } } = await ocrWorker.recognize(capturedFile);
+      console.log('OCR TEXT:', text);
+      if (!text || text.trim().length < 10) throw new Error('Brak tekstu');
+      parseAndFillLabel(text);
+      status.className = 'ocr-status success';
+      status.textContent = '✅ Rozpoznano! Sprawdź dane.';
+      document.getElementById('scanForm').style.display = 'block';
+    } catch(err) {
+      status.className = 'ocr-status error';
+      status.textContent = '⚠️ Nie udało się rozpoznać. Wpisz ręcznie.';
+      document.getElementById('scanForm').style.display = 'block';
+      clearScanForm();
+    }
   };
   reader.readAsDataURL(file);
 }
@@ -900,31 +908,19 @@ function handleProjScan(input) {
     status.className = 'ocr-status loading';
     status.innerHTML = '<div class="spinner"></div> Rozpoznaję projekt...';
 
-    const formData2 = new FormData();
-    formData2.append('file', capturedFile);
-    formData2.append('apikey', OCR_KEY);
-    formData2.append('language', 'ger');
-    formData2.append('isOverlayRequired', 'false');
-    formData2.append('detectOrientation', 'true');
-    formData2.append('scale', 'true');
-    formData2.append('OCREngine', '2');
-
-    fetch('https://api.ocr.space/parse/image', { method: 'POST', body: formData2 })
-      .then(r => r.json())
-      .then(data => {
-        if (!data.ParsedResults || !data.ParsedResults[0]) throw new Error();
-        const text = data.ParsedResults[0].ParsedText || '';
-        parseProjText(text);
-        status.className = 'ocr-status success';
-        status.textContent = '✅ Rozpoznano! Sprawdź dane.';
-        document.getElementById('projForm').style.display = 'block';
-      })
-      .catch(() => {
-        status.className = 'ocr-status error';
-        status.textContent = '⚠️ Nie udało się. Wpisz ręcznie.';
-        document.getElementById('projForm').style.display = 'block';
-        if (!positions.length) addPosition();
-      });
+    try {
+      if (!ocrWorker) await initOCR();
+      const { data: { text } } = await ocrWorker.recognize(capturedFile);
+      parseProjText(text);
+      status.className = 'ocr-status success';
+      status.textContent = '✅ Rozpoznano! Sprawdź dane.';
+      document.getElementById('projForm').style.display = 'block';
+    } catch(err) {
+      status.className = 'ocr-status error';
+      status.textContent = '⚠️ Nie udało się. Wpisz ręcznie.';
+      document.getElementById('projForm').style.display = 'block';
+      if (!positions.length) addPosition();
+    }
   };
   reader.readAsDataURL(file);
 }
@@ -1360,6 +1356,7 @@ function formatDateDE(iso) {
 
 // ===================== INIT =====================
 renderBaza();
+initOCR();
 </script>
 </body>
 </html>
